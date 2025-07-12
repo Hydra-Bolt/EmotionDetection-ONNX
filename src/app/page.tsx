@@ -33,13 +33,26 @@ export default function Home() {
   const [error, setError] = useState<string | null>(null);
   const [inferenceTime, setInferenceTime] = useState<number | null>(null);
   const [isModelLoading, setIsModelLoading] = useState(true);
+  const [modelLoadingProgress, setModelLoadingProgress] = useState(0);
 
   // Initialize ONNX Runtime on component mount
   useEffect(() => {
     const initializeRuntime = async () => {
       try {
+        setModelLoadingProgress(10);
         await initializeONNXRuntime();
-        setIsModelLoading(false);
+        setModelLoadingProgress(50);
+        
+        // Preload the model by making a dummy inference
+        const dummyText = "test";
+        setModelLoadingProgress(80);
+        await runClientInference(dummyText);
+        setModelLoadingProgress(100);
+        
+        // Small delay to show completion
+        setTimeout(() => {
+          setIsModelLoading(false);
+        }, 500);
       } catch (err: any) {
         setError(`Failed to initialize ONNX Runtime: ${err.message}`);
         setIsModelLoading(false);
@@ -199,6 +212,51 @@ export default function Home() {
             <br />
             <span className="text-cyan-400 font-semibold">Powered by BERT & ONNX</span> for lightning-fast analysis.
           </motion.p>
+          
+          {/* Model Loading Progress Bar */}
+          <AnimatePresence>
+            {isModelLoading && (
+              <motion.div
+                initial={{ opacity: 0, y: 20 }}
+                animate={{ opacity: 1, y: 0 }}
+                exit={{ opacity: 0, y: -20 }}
+                className="mt-8 max-w-md mx-auto"
+              >
+                <div className="bg-white/10 backdrop-blur rounded-2xl p-4 sm:p-6 border border-white/20">
+                  <div className="flex items-center gap-3 mb-4">
+                    <motion.div 
+                      className="w-4 h-4 border-2 border-cyan-400 border-t-transparent rounded-full"
+                      animate={{ rotate: 360 }}
+                      transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                    />
+                    <span className="text-white font-semibold">Initializing AI Model...</span>
+                  </div>
+                  
+                  <div className="relative">
+                    <div className="h-2 bg-white/20 rounded-full overflow-hidden">
+                      <motion.div
+                        initial={{ width: 0 }}
+                        animate={{ width: `${modelLoadingProgress}%` }}
+                        transition={{ duration: 0.5, ease: "easeOut" }}
+                        className="h-full bg-gradient-to-r from-cyan-400 to-purple-500 rounded-full"
+                      />
+                    </div>
+                    <div className="flex justify-between mt-2 text-xs text-gray-400">
+                      <span>Loading ONNX Runtime...</span>
+                      <span>{modelLoadingProgress}%</span>
+                    </div>
+                  </div>
+                  
+                  <div className="mt-3 text-xs text-gray-400 text-center">
+                    {modelLoadingProgress < 30 && "Initializing runtime..."}
+                    {modelLoadingProgress >= 30 && modelLoadingProgress < 70 && "Loading model weights..."}
+                    {modelLoadingProgress >= 70 && modelLoadingProgress < 100 && "Warming up model..."}
+                    {modelLoadingProgress === 100 && "Ready! 🎉"}
+                  </div>
+                </div>
+              </motion.div>
+            )}
+          </AnimatePresence>
         </motion.div>
 
         {/* Main Content */}
@@ -305,8 +363,8 @@ export default function Home() {
                 <div>
                   <label htmlFor="text-input" className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white mb-3">
                     <span className="text-lg sm:text-xl">💭</span>
-                    {isModelLoading ? 'Loading AI model...' : 'Express yourself'}
-                    {(loading || isModelLoading) && (
+                    {isModelLoading ? 'AI model is loading...' : 'Express yourself'}
+                    {(loading && !isModelLoading) && (
                       <motion.div 
                         className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full ml-2"
                         animate={{ rotate: 360 }}
@@ -336,13 +394,22 @@ export default function Home() {
                 
                 <motion.button 
                   type="submit" 
-                  disabled={loading || !text.trim()}
+                  disabled={loading || !text.trim() || isModelLoading}
                   whileHover={{ scale: 1.02 }}
                   whileTap={{ scale: 0.98 }}
                   className="w-full bg-gradient-to-r from-cyan-500 to-purple-600 hover:from-cyan-400 hover:to-purple-500 disabled:from-gray-600 disabled:to-gray-700 text-white font-semibold py-2 sm:py-3 px-4 sm:px-6 rounded-xl text-sm sm:text-base transition-all duration-300 shadow-lg disabled:cursor-not-allowed relative overflow-hidden"
                 >
                   <div className="relative flex items-center justify-center gap-2">
-                    {loading ? (
+                    {isModelLoading ? (
+                      <>
+                        <motion.div 
+                          className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full"
+                          animate={{ rotate: 360 }}
+                          transition={{ duration: 1, repeat: Infinity, ease: "linear" }}
+                        />
+                        Model Loading... {modelLoadingProgress}%
+                      </>
+                    ) : loading ? (
                       <>
                         <motion.div 
                           className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full"

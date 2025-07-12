@@ -8,6 +8,7 @@ const MODEL_PATH = '/models/classifier_int8.onnx';
 
 // Cache for the ONNX session to avoid reloading the model each time
 let cachedSession: ort.InferenceSession | null = null;
+let isModelPreloaded = false;
 
 async function getOrCreateSession(): Promise<ort.InferenceSession> {
   if (!cachedSession) {
@@ -52,6 +53,16 @@ export async function runClientInference(text: string) {
   console.log('Starting client-side inference for text:', text.substring(0, 50) + '...');
   
   try {
+    // Get or create the session (will use cached if available)
+    const session = await getOrCreateSession();
+    
+    // For preloading with dummy text, return early
+    if (text === "test" && !isModelPreloaded) {
+      isModelPreloaded = true;
+      console.log('Model preloaded successfully');
+      return [0, 0, 0, 0, 0, 0]; // Return dummy output for preloading
+    }
+    
     // Load tokenizer and tokenize input
     const tokenizer = await loadTokenizer();
     let inputIds = tokenizer.tokenize(text);
@@ -81,9 +92,6 @@ export async function runClientInference(text: string) {
     // Create token type ids (all 0s for single sentence classification)
     const tokenTypeIds = new Array(maxLen).fill(0);
     const tokenTypeIdsTensor = new ort.Tensor('int64', new BigInt64Array(tokenTypeIds.map(id => BigInt(id))), [1, maxLen]);
-
-    // Load ONNX model (cached)
-    const session = await getOrCreateSession();
 
     // Prepare feeds based on model inputs
     const feeds: Record<string, ort.Tensor> = {};
