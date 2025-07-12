@@ -11,7 +11,7 @@
   "dependencies": {
     "framer-motion": "^12.23.3",
     "next": "15.3.4",
-    "onnxruntime-node": "^1.22.0-rev",
+    "onnxruntime-web": "^1.22.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0"
   },

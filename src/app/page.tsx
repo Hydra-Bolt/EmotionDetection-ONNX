@@ -1,6 +1,7 @@
 "use client";
 import { useState, useEffect, useCallback } from 'react';
 import { motion, AnimatePresence } from 'framer-motion';
+import { runClientInference, initializeONNXRuntime } from '../lib/client-inference';
 
 // Emotion labels mapping for the model output
 const EMOTION_LABELS = [
@@ -31,6 +32,22 @@ export default function Home() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [inferenceTime, setInferenceTime] = useState<number | null>(null);
+  const [isModelLoading, setIsModelLoading] = useState(true);
+
+  // Initialize ONNX Runtime on component mount
+  useEffect(() => {
+    const initializeRuntime = async () => {
+      try {
+        await initializeONNXRuntime();
+        setIsModelLoading(false);
+      } catch (err: any) {
+        setError(`Failed to initialize ONNX Runtime: ${err.message}`);
+        setIsModelLoading(false);
+      }
+    };
+
+    initializeRuntime();
+  }, []);
 
   // Debounce hook for live inference
   const useDebounce = (value: string, delay: number) => {
@@ -52,7 +69,7 @@ export default function Home() {
   const debouncedText = useDebounce(text, 1000); // 1 second delay
 
   const runInference = useCallback(async (inputText: string) => {
-    if (!inputText.trim()) {
+    if (!inputText.trim() || isModelLoading) {
       setResult(null);
       setInferenceTime(null);
       return;
@@ -63,17 +80,10 @@ export default function Home() {
     const startTime = performance.now();
     
     try {
-      const res = await fetch('/api/infer', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ text: inputText }),
-      });
-      const data = await res.json();
+      const output = await runClientInference(inputText);
       const endTime = performance.now();
       
-      if (!res.ok) throw new Error(data.error || 'Unknown error');
-      
-      setResult(data.output);
+      setResult(output);
       setInferenceTime(endTime - startTime);
     } catch (err: any) {
       setError(err.message);
@@ -81,7 +91,7 @@ export default function Home() {
     } finally {
       setLoading(false);
     }
-  }, []);
+  }, [isModelLoading]);
 
   // Trigger inference when debounced text changes
   useEffect(() => {
@@ -295,8 +305,8 @@ export default function Home() {
                 <div>
                   <label htmlFor="text-input" className="flex items-center gap-2 text-base sm:text-lg font-semibold text-white mb-3">
                     <span className="text-lg sm:text-xl">💭</span>
-                    Express yourself
-                    {loading && (
+                    {isModelLoading ? 'Loading AI model...' : 'Express yourself'}
+                    {(loading || isModelLoading) && (
                       <motion.div 
                         className="w-3 h-3 sm:w-4 sm:h-4 border-2 border-white border-t-transparent rounded-full ml-2"
                         animate={{ rotate: 360 }}
@@ -310,7 +320,7 @@ export default function Home() {
                       value={text}
                       onChange={e => setText(e.target.value)}
                       rows={3}
-                      placeholder="Start typing to see live emotion analysis..."
+                      placeholder={isModelLoading ? "Loading AI model, please wait..." : "Start typing to see live emotion analysis..."}
                       className="w-full px-3 sm:px-4 py-2 sm:py-3 text-sm sm:text-base border-2 border-white/20 rounded-xl focus:border-cyan-400 focus:ring-2 focus:ring-cyan-400/20 transition-all duration-300 bg-white/5 backdrop-blur text-white placeholder-gray-400 resize-none shadow-inner"
                     />
                     <div className="absolute bottom-2 right-3 flex items-center gap-2 sm:gap-3 text-xs text-gray-400">
